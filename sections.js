@@ -109,9 +109,19 @@ export function drawEstilo(st) {
   chart('media-months', { type: 'bar', data: { labels, datasets: types.map((t, i) => ({ label: TYPES[t] || t, data: st.media.map((m) => m.types[t] || 0), backgroundColor: color(i) })) }, options: stacked() });
 }
 
-export function nombres(mt, names) {
+function tagsTable(tags, names) {
+  const got = {};
+  for (const by of Object.values(tags)) for (const [who, c] of Object.entries(by)) got[who] = (got[who] || 0) + c;
+  const targets = Object.entries(got).sort((a, b) => b[1] - a[1]).slice(0, 25);
+  if (!targets.length) return '';
+  const rows = targets.map(([who, total]) => [esc(who), `<b>${n(total)}</b>`, ...names.map((a) => n(tags[a]?.[who] || 0))]);
+  return `<div class="card"><h2>Etiquetas con @</h2>${help('Menciones hechas con @. WhatsApp las exporta con el nombre con el que tú guardaste a ese contacto (o su número), así que no cuentan como palabras escritas ni entran en las demás estadísticas.')}
+    ${table(['Etiquetado', 'Total', ...personHead(names)], rows)}</div>`;
+}
+
+export function nombres(mt, names, tags = {}) {
   const rows = mt.map((r) => [esc(r.name), `<b>${n(r.total)}</b>`, ...names.map((a) => n(r.by[a] || 0))]);
-  return `<div class="card"><h2>Quién nombra a quién</h2>${help('Veces que aparece cada nombre en mensajes de texto. Ignora mayúsculas, tildes y letras repetidas ("Pieraa" cuenta como "piera"). Cada variante (marian / mariana) cuenta aparte.')}
+  return `${tagsTable(tags, names)}<div class="card"><h2>Quién nombra a quién</h2>${help('Veces que alguien escribe el nombre (sin contar las etiquetas con @). Ignora mayúsculas, tildes y letras repetidas ("Pieraa" cuenta como "piera"). Cada variante (marian / mariana) cuenta aparte.')}
     <form id="names-form" class="custom"><input id="names-input" placeholder="Mariana, Oriana, Marci…" aria-label="Nombres a contar"><button>Contar</button></form>
     ${help('La lista se guarda solo en este navegador.')}
     ${mt.length ? table(['Nombre', 'Total', ...personHead(names)], rows) : help('Agrega nombres para empezar.')}</div>

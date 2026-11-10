@@ -11,7 +11,7 @@ function newAuthor() {
 export function compute(messages) {
   const authors = {};
   const perDay = {}, perMonth = {}, heat = Array.from({ length: 7 }, () => Array(24).fill(0));
-  const emojis = {}, words = {}, types = {};
+  const emojis = {}, words = {}, types = {}, tags = {}; // tags[author][mentioned] = @mentions
   let prev = null;
   for (const m of messages) {
     const a = (authors[m.author] ||= newAuthor());
@@ -22,6 +22,7 @@ export function compute(messages) {
     inc((perMonth[monthKey(d)] ||= {}), m.author);
     heat[wd][d.getHours()]++;
     if (m.edited) a.edited++;
+    for (const who of m.mentions || []) inc((tags[m.author] ||= {}), who);
     if (!prev || d - prev.date >= GAP) a.starts++;
     else if (prev.author !== m.author) a.responses.push(d - prev.date);
     prev = m;
@@ -69,7 +70,7 @@ export function compute(messages) {
     total: messages.length, first, last, spanDays, activeDays: days.length,
     avgPerDay: messages.length / Math.max(1, spanDays),
     words: people.reduce((s, p) => s + p.words, 0),
-    people, types, heat, busiest, streak: best, silence,
+    people, types, heat, busiest, streak: best, silence, tags,
     months: Object.keys(perMonth).sort().map((k) => ({ month: k, by: perMonth[k] })),
     days: days.map((k, i) => ({ day: k, n: dayTotals[i] })),
     topEmojis: top(emojis, 20), topWords: top(words, 30),

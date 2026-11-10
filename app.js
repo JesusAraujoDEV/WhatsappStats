@@ -83,7 +83,7 @@ function renderCarino() {
 }
 
 async function renderNombres() {
-  $('#nombres').innerHTML = nombres(state.mt, names());
+  $('#nombres').innerHTML = nombres(state.mt, names(), state.s.tags);
   $('#names-input').value = (await loadNames()).join(', ');
   $('#names-form').onsubmit = (e) => { e.preventDefault(); save('whatsappstats.names', splitList($('#names-input').value)); recount(); };
   drawNombres(state.mt, names());

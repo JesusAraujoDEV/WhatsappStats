@@ -84,4 +84,10 @@ assert.deepEqual(mt.map((r) => [r.name, r.total]), [['Mariana', 2], ['Piera', 1]
 assert.deepEqual(mt[0].by, { Ana: 1, Bob: 1 });
 assert.equal(rhythm(group.messages).replies.Caro.Bob, 1);
 assert.deepEqual(events(parse('01.06.25, 10:00 - Ana hat den Gruppennamen von „A“ zu „B“ geändert.\n01.06.25, 10:01 - Bob hat Caro hinzugefügt.').system).map((e) => e.kind), ['Nombre / foto del grupo', 'Entra / sale']);
+// @mentions carry the exporter's contact name: pulled out of the text, counted apart
+const tagged = parse('01.06.25, 10:00 - Ana: @⁨Paco Alcácer 🐙⁩ ven ya\n01.06.25, 10:01 - Bob: @+58 412 1234567 hola');
+assert.equal(tagged.messages[0].text, 'ven ya');
+assert.deepEqual(tagged.messages[0].mentions, ['Paco Alcácer 🐙']);
+assert.deepEqual(compute(tagged.messages).tags, { Ana: { 'Paco Alcácer 🐙': 1 }, Bob: { '+58 412 1234567': 1 } });
+assert.ok(!compute(tagged.messages).topWords.some(([w]) => w === 'paco'));
 console.log('ok');

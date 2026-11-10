@@ -5,7 +5,10 @@ const DELETED = /^(this message was deleted|you deleted this message|diese nachr
 const EDITED = /\s*<(this message was edited|diese nachricht wurde bearbeitet\.?|se editó este mensaje\.?)>$/i;
 const OMITTED = /^<(media omitted|medien ausgeschlossen|multimedia omitido)>$/i;
 const ATTACHED = /^(\S+\.\w+) \((file attached|datei angehängt|archivo adjunto)\)/i;
-const LOCATION = /^(location|standort|ubicación): /i;
+// @mentions are exported with the contact name as saved on the exporting phone: "@⁨Paco 🐙⁩",
+// or the number for unsaved contacts. They're not typed words, so they're pulled out of the text.
+const MENTION = /@⁨([^⁩]+)⁩|@(\+?\d[\d ]{6,}\d)/g;
+const LOCATION =/^(location|standort|ubicación): /i;
 
 function attachmentType(name) {
   const n = name.toUpperCase();
@@ -72,7 +75,9 @@ export function parse(raw) {
     let text = [rest.slice(sep + 2), ...extra].join('\n');
     const edited = text.endsWith('>') && EDITED.test(text); // cheap guard: the regex backtracks on every line
     if (edited) text = text.replace(EDITED, '');
-    messages.push({ date, author, text, type: classify(text.trim()), edited });
+    const mentions = [];
+    if (text.includes('@')) text = text.replace(MENTION, (_, name, num) => (mentions.push((name || num).trim()), '')).replace(/^\s+|\s+$/g, '');
+    messages.push({ date, author, text, type: classify(text.trim()), edited, mentions });
   }
   return { messages, system, dayFirst };
 }
