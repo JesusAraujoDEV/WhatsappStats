@@ -24,6 +24,8 @@
   th, td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
   th:first-child, td:first-child { text-align:left; }
   .scroll { overflow-x:auto; }
+  /* first column stays put while the name columns scroll under it */
+  .scroll th:first-child, .scroll td:first-child { position:sticky; left:0; z-index:1; background:var(--card); box-shadow:1px 0 0 var(--line); max-width:45vw; white-space:normal; }
   .heat { display:grid; grid-template-columns:32px repeat(24, 1fr); gap:2px; font-size:10px; color:var(--muted); }
   .heat div { aspect-ratio:1; border-radius:3px; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; }
