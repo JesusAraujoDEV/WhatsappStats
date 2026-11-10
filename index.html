@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp Stats</title>
+<style>
+  :root { --bg:#f6f7f5; --card:#fff; --fg:#1b1f1d; --muted:#66706b; --line:#e3e6e4; --accent:#128c7e; --a1:#128c7e; --a2:#e0598b; --a3:#f2a33a; --a4:#5b6ee1; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1412; --card:#18201d; --fg:#e8ece9; --muted:#93a09a; --line:#2a3430; --accent:#25d366; --a1:#25d366; --a2:#ff7aa8; --a3:#ffb84d; --a4:#8b9bff; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:1100px; margin:auto; padding:24px 16px 64px; }
+  h1 { margin:0 0 4px; font-size:28px; } h2 { font-size:18px; margin:0 0 12px; }
+  .muted { color:var(--muted); font-size:13px; }
+  #drop { margin:20px 0; border:2px dashed var(--line); border-radius:14px; padding:40px 16px; text-align:center; cursor:pointer; background:var(--card); }
+  #drop.over { border-color:var(--accent); }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-top:16px; min-width:0; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .kpi b { display:block; font-size:22px; } .kpi span { color:var(--muted); font-size:12px; }
+  .two { display:grid; gap:0 16px; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); }
+  .chart { position:relative; height:280px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  .scroll { overflow-x:auto; }
+  .heat { display:grid; grid-template-columns:32px repeat(24, 1fr); gap:2px; font-size:10px; color:var(--muted); }
+  .heat div { aspect-ratio:1; border-radius:3px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:2px 10px; font-size:14px; }
+  details pre { white-space:pre-wrap; word-break:break-word; max-height:240px; overflow:auto; font:13px/1.4 inherit; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>WhatsApp Stats</h1>
+  <p class="muted">Exporta un chat (Más opciones → Más → Exportar chat) y suelta el <code>.txt</code> aquí. Todo se procesa en tu navegador: el chat no se sube a ningún lado.</p>
+  <label id="drop"><input id="file" type="file" accept=".txt,text/plain" hidden><b>Suelta el .txt o haz clic para elegirlo</b><div class="muted" id="status"></div></label>
+  <section id="out" hidden></section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
