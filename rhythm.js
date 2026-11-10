@@ -18,9 +18,10 @@ function responseStats(list) {
 export function rhythm(messages) {
   const first = messages[0].date, last = messages.at(-1).date;
   const resp = {}, monthResp = {}, bursts = {}, opens = {}, closes = {}, openMonth = {}, closeMonth = {};
-  const months = {}, weeks = {}, perDay = {}, gaps = [];
+  const months = {}, weeks = {}, perDay = {}, gaps = [], replies = {};
   let sessions = [], sess = null, burst = { author: null, n: 0 }, maxBurst = { n: 0 }, switches = 0;
   const dayFirstLast = {};
+  let cache = { date: -1, at: 0 };
 
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i], prev = messages[i - 1], d = m.date, mk = monthKey(d);
@@ -28,21 +29,24 @@ export function rhythm(messages) {
     M.n++; inc(M.by, m.author); M.bands[band(d.getHours())]++; inc(M.types, m.type);
     if (d.getHours() < 5) M.night++;
     if (m.type === 'text') for (const e of m.text.match(EMOJI) || []) inc(M.emojis, e);
-    inc(perDay, dayKey(d));
-    // weeks start on Monday
-    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
-    const W = (weeks[dayKey(monday)] ||= { n: 0, by: {}, media: 0 });
+    // date keys only change when the calendar day does; messages are sorted, so cache them
+    if (d.getDate() !== cache.date || d - cache.at > 864e5) {
+      cache = { date: d.getDate(), at: d, dk: dayKey(d), wk: dayKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))) };
+    }
+    inc(perDay, cache.dk);
+    const W = (weeks[cache.wk] ||= { n: 0, by: {}, media: 0 }); // weeks start on Monday
     W.n++; inc(W.by, m.author); if (m.type !== 'text') W.media++;
 
-    const ld = logicalDay(d);
+    const ld = d.getHours() < 5 ? logicalDay(d) : cache.dk;
     (dayFirstLast[ld] ||= { first: m, last: m }).last = m;
 
     const gap = prev ? d - prev.date : Infinity;
     if (prev) {
       if (prev.author !== m.author) switches++;
-      gaps.push({ gap, from: prev.date, breaker: m.author });
+      if (gaps.length < 8 || gap > gaps[7].gap) { gaps.push({ gap, from: prev.date, breaker: m.author }); gaps.sort((a, b) => b.gap - a.gap).length = Math.min(8, gaps.length); }
       if (gap < GAP && prev.author !== m.author) {
         (resp[m.author] ||= []).push(gap);
+        inc((replies[m.author] ||= {}), prev.author);
         (monthResp[mk] ||= []).push(gap);
       }
     }
@@ -80,6 +84,7 @@ export function rhythm(messages) {
   });
 
   return {
+    replies, // replies[a][b] = times a answered right after b (< 6 h)
     responses: Object.fromEntries(Object.entries(resp).map(([a, l]) => [a, responseStats(l)])),
     sessions: { n: sessions.length, perDay: sessions.length / allDays.length, perSession: messages.length / sessions.length, longest },
     opens, closes, monthly,
@@ -87,7 +92,7 @@ export function rhythm(messages) {
     rare: { low: active.filter(([, n]) => n < 150).length, high: active.filter(([, n]) => n > 1000).length, lowest: active.slice(0, 5), highest: active.slice(-5).reverse() },
     medianPerDay: quantile(counts, 0.5),
     dayHistogram: DAY_BUCKETS.map(([label, max], i) => [label, counts.filter((n) => n <= max && n > (i ? DAY_BUCKETS[i - 1][1] : -1)).length]),
-    silences: gaps.sort((a, b) => b.gap - a.gap).slice(0, 8),
+    silences: gaps,
     bursts: { max: maxBurst, avg: Object.fromEntries(Object.entries(bursts).map(([a, l]) => [a, l.reduce((x, y) => x + y, 0) / l.length])) },
     alternation: switches / Math.max(1, messages.length - 1),
     weekdayAvg: wdCount, // divide per-person weekday totals by this

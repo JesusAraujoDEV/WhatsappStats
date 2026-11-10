@@ -70,7 +70,7 @@ export function parse(raw) {
     if (sep < 1 || sep > 60) { system.push({ date, text: rest }); continue; }
     const author = rest.slice(0, sep).trim();
     let text = [rest.slice(sep + 2), ...extra].join('\n');
-    const edited = EDITED.test(text);
+    const edited = text.endsWith('>') && EDITED.test(text); // cheap guard: the regex backtracks on every line
     if (edited) text = text.replace(EDITED, '');
     messages.push({ date, author, text, type: classify(text.trim()), edited });
   }

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { parse } from './parser.js';
 import { compute } from './stats.js';
-import { lexicon, customCategory } from './lexicon.js';
+import { lexicon, customCategory, mentions } from './lexicon.js';
 import { rhythm } from './rhythm.js';
 import { style, events } from './style.js';
 
@@ -73,4 +73,15 @@ assert.ok(!compute(love.messages).topWords.some(([w]) => w === 'const' || w === 
 
 assert.deepEqual(events(parse(`05.09.26, 00:00 - Du hast diese Person blockiert. Tippe, um sie freizugeben.
 05.09.26, 00:01 - Du blockierst diese Person nicht mehr.`).system).map((e) => e.kind), ['Bloqueo', 'Desbloqueo']);
+// groups: name mentions, reply matrix, group events
+const group = parse(`01.06.25, 10:00 - Ana: hola Pieraa y MARIANA
+01.06.25, 10:01 - Bob: marian no vino, mariana sí
+01.06.25, 10:02 - Caro: jaja
+01.06.25, 10:03 - Ana: hat den Gruppennamen von „A“ zu „B“ geändert.
+01.06.25, 10:04 - Bob hat Caro hinzugefügt.`);
+const mt = mentions(group.messages, ['Piera', 'Mariana', 'marian', 'Ami']);
+assert.deepEqual(mt.map((r) => [r.name, r.total]), [['Mariana', 2], ['Piera', 1], ['marian', 1], ['Ami', 0]]);
+assert.deepEqual(mt[0].by, { Ana: 1, Bob: 1 });
+assert.equal(rhythm(group.messages).replies.Caro.Bob, 1);
+assert.deepEqual(events(parse('01.06.25, 10:00 - Ana hat den Gruppennamen von „A“ zu „B“ geändert.\n01.06.25, 10:01 - Bob hat Caro hinzugefügt.').system).map((e) => e.kind), ['Nombre / foto del grupo', 'Entra / sale']);
 console.log('ok');

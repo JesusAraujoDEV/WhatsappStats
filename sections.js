@@ -47,7 +47,9 @@ export function ritmo(s, rh, names) {
   ];
   const sil = rh.silences.map((g) => [dur(g.gap), fmtDate(g.from), esc(g.breaker)]);
   const days = (list) => list.map(([d, c]) => `${fmtDay(d)} <span class="muted">${n(c)}</span>`).join(' · ');
-  return `<div class="grid">${kpi.map(([b, t]) => `<div class="kpi"><b>${b}</b><span>${t}</span></div>`).join('')}</div>
+  const matrix = names.length > 2 ? `<div class="card"><h2>Quién le responde a quién</h2>${help('Fila: quien escribe. Columna: a quién le sigue (el mensaje anterior era de esa persona, menos de 6 h antes).')}
+    ${table(['', ...personHead(names)], names.map((a) => [esc(a), ...names.map((b) => (a === b ? '—' : n(rh.replies[a]?.[b] || 0)))]))}</div>` : '';
+  return `<div class="grid">${kpi.map(([b, t]) => `<div class="kpi"><b>${b}</b><span>${t}</span></div>`).join('')}</div>${matrix}
     <div class="card"><h2>Reciprocidad</h2>${help('Respuesta = mensaje de la otra persona tras menos de 6 h. Los timestamps son de minuto, así que se muestra el % de respuestas en menos de 1 min y el p90 (el 90 % de las respuestas llega antes de ese tiempo) en vez de la mediana. Las llamadas no se exportan.')}
     ${table(['', ...personHead(names)], rows)}</div>
     <div class="two"><div class="card"><h2>Silencios más largos</h2>${table(['Duración', 'Desde', 'Lo rompió'], sil)}</div>
@@ -105,6 +107,20 @@ export function drawEstilo(st) {
   const labels = st.media.map((m) => m.month);
   const types = [...new Set(st.media.flatMap((m) => Object.keys(m.types)))];
   chart('media-months', { type: 'bar', data: { labels, datasets: types.map((t, i) => ({ label: TYPES[t] || t, data: st.media.map((m) => m.types[t] || 0), backgroundColor: color(i) })) }, options: stacked() });
+}
+
+export function nombres(mt, names) {
+  const rows = mt.map((r) => [esc(r.name), `<b>${n(r.total)}</b>`, ...names.map((a) => n(r.by[a] || 0))]);
+  return `<div class="card"><h2>Quién nombra a quién</h2>${help('Veces que aparece cada nombre en mensajes de texto. Ignora mayúsculas, tildes y letras repetidas ("Pieraa" cuenta como "piera"). Cada variante (marian / mariana) cuenta aparte.')}
+    <form id="names-form" class="custom"><input id="names-input" placeholder="Mariana, Oriana, Marci…" aria-label="Nombres a contar"><button>Contar</button></form>
+    ${help('La lista se guarda solo en este navegador.')}
+    ${mt.length ? table(['Nombre', 'Total', ...personHead(names)], rows) : help('Agrega nombres para empezar.')}</div>
+    ${mt.length ? chartCard('names-chart', 'Nombres más mencionados', '', Math.max(240, mt.length * 28)) : ''}`;
+}
+
+export function drawNombres(mt, names) {
+  if (!mt.length) return;
+  chart('names-chart', { type: 'bar', data: { labels: mt.map((r) => r.name), datasets: names.map((a, i) => ({ label: a, data: mt.map((r) => r.by[a] || 0), backgroundColor: color(i) })) }, options: { indexAxis: 'y', ...stacked() } });
 }
 
 export function eventos(ev) {

@@ -61,8 +61,9 @@ const EVENTS = [
   ['Desbloqueo', /nicht mehr|unblocked|desbloqueaste|desbloqueado/i],
   ['Bloqueo', /blockiert|blocked|bloqueaste|bloqueado/i],
   ['Cambio de número', /nummer|number|número/i],
-  ['Nombre / foto del grupo', /(changed|geändert|cambió|cambiaste).*(name|namen|nombre|icon|bild|foto|subject|betreff|asunto)/i],
+  ['Nombre / foto del grupo', /gruppen(name|bild|beschreibung)|changed (the )?(group )?(name|subject|icon|description)|cambió (el (nombre|asunto)|la (foto|descripción|imagen))|cambiaste/i],
   ['Entra / sale', /(joined|added|left|removed|beigetreten|hinzugefügt|verlassen|entfernt|se unió|añadió|salió|eliminó)/i],
+  ['Admin', /\badmin\b/i],
 ];
 
 export function events(system) {

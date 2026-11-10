@@ -1,11 +1,16 @@
 import { $, esc, n, pct, fmtDate, dur, css, color, chips, chartCard, section, chart, stacked, WEEK, TYPES } from './ui.js';
 import { dayKey } from './util.js';
-import { carino, drawCarino, ritmo, drawRitmo, mesames, drawMesames, estilo, drawEstilo, eventos } from './sections.js';
+import { nombres, drawNombres, carino, drawCarino, ritmo, drawRitmo, mesames, drawMesames, estilo, drawEstilo, eventos } from './sections.js';
 
 const worker = new Worker('worker.js', { type: 'module' });
-const KEY = 'whatsappstats.custom';
-const loadCustom = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
-const saveCustom = (l) => { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch {} };
+const read = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const loadCustom = () => read('whatsappstats.custom') || [];
+// Default names come from names.json, generated from the NAMES env var when the container starts (not in git).
+const defaultNames = fetch('names.json').then((r) => (r.ok ? r.json() : [])).catch(() => []);
+const loadNames = async () => read('whatsappstats.names') || (await defaultNames);
+const splitList = (v) => v.split(',').map((w) => w.trim()).filter(Boolean).slice(0, 60);
+const recount = async () => worker.postMessage({ custom: loadCustom(), names: await loadNames() });
 let state = null, fileName = '';
 
 const drop = $('#drop');
@@ -19,13 +24,13 @@ window.onbeforeprint = () => document.querySelectorAll('details').forEach((d) =>
 async function load(file) {
   fileName = file.name;
   $('#status').textContent = `Procesando ${file.name}… (un chat grande tarda unos segundos)`;
-  worker.postMessage({ text: await file.text(), custom: loadCustom() });
+  worker.postMessage({ text: await file.text(), custom: loadCustom(), names: await loadNames() });
 }
 
 worker.onmessage = ({ data }) => {
   if (data.error) { $('#status').textContent = data.error; return; }
   if (data.s) { state = data; render(); $('#status').textContent = `${fileName} · ${n(data.s.total)} mensajes`; return; }
-  state.lx = data.lx; renderCarino();
+  state.lx = data.lx; state.mt = data.mt; renderCarino(); renderNombres();
 };
 
 function kpis(s) {
@@ -73,13 +78,15 @@ const names = () => state.s.people.slice(0, 12).map((p) => p.name);
 function renderCarino() {
   $('#carino').innerHTML = carino(state.lx, names());
   $('#custom-input').value = loadCustom().join(', ');
-  $('#custom-form').onsubmit = (e) => {
-    e.preventDefault();
-    const list = $('#custom-input').value.split(',').map((w) => w.trim()).filter(Boolean).slice(0, 20);
-    saveCustom(list);
-    worker.postMessage({ custom: list });
-  };
+  $('#custom-form').onsubmit = (e) => { e.preventDefault(); save('whatsappstats.custom', splitList($('#custom-input').value)); recount(); };
   drawCarino(state.lx, names());
+}
+
+async function renderNombres() {
+  $('#nombres').innerHTML = nombres(state.mt, names());
+  $('#names-input').value = (await loadNames()).join(', ');
+  $('#names-form').onsubmit = (e) => { e.preventDefault(); save('whatsappstats.names', splitList($('#names-input').value)); recount(); };
+  drawNombres(state.mt, names());
 }
 
 function render() {
@@ -93,6 +100,7 @@ function render() {
     <div class="two">${chartCard('types', 'Tipos de mensaje')}${chartCard('share', 'Quién habla más')}</div>
     <div class="card"><h2>Emojis más usados</h2>${chips(s.topEmojis)}</div>
     ${chartCard('words', 'Palabras más usadas', '', 640)}${personCards(s)}
+    ${section('Nombres mencionados', '<div id="nombres"></div>', s.people.length > 2)}
     ${section('Cariño', '<div id="carino"></div>')}
     ${section('Ritmo y reciprocidad', ritmo(s, rh, names()))}
     ${section('Mes a mes', mesames(rh, state.lx, names()))}
@@ -102,6 +110,7 @@ function render() {
   Chart.defaults.borderColor = css('--line');
   draw(s, ev);
   renderCarino();
+  renderNombres();
   drawRitmo(s, rh, names());
   drawMesames(rh);
   drawEstilo(st);

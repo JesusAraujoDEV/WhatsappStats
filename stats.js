@@ -54,14 +54,15 @@ export function compute(messages) {
 
   const people = Object.entries(authors)
     .sort((x, y) => y[1].messages - x[1].messages)
-    .map(([name, a]) => ({
+    // drop the big per-person maps: they'd be cloned back from the worker for nothing
+    .map(([name, { words_, emojis: _e, responses, days, ...a }]) => ({
       name, ...a,
-      activeDays: a.days.size,
+      activeDays: days.size,
       avgLen: a.chars / Math.max(1, a.types.text || 0),
       // ponytail: mean, not median — exports have minute precision so the median is almost always 0
-      avgResponse: a.responses.reduce((x, y) => x + y, 0) / Math.max(1, a.responses.length),
-      topEmojis: top(a.emojis, 10),
-      topWords: top(a.words_, 15),
+      avgResponse: responses.reduce((x, y) => x + y, 0) / Math.max(1, responses.length),
+      topEmojis: top(_e, 10),
+      topWords: top(words_, 15),
     }));
 
   return {
