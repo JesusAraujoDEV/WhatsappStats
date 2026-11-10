@@ -2,7 +2,7 @@
 
 Estadísticas de un chat de WhatsApp exportado: mensajes por persona, palabras, emojis, risas, quién inicia las conversaciones, tiempo de respuesta, rachas, silencios, actividad por mes/día/hora, heatmap, tipos de mensaje (stickers, audios, fotos…) y palabras favoritas.
 
-**Úsalo:** https://jesusaraujodev.github.io/WhatsappStats/ — exporta el chat (*Exportar chat → Sin archivos*) y suelta el `.txt`.
+**Úsalo:** https://whatsappstats.jesusaraujo.lat — exporta el chat (*Exportar chat → Sin archivos*) y suelta el `.txt`.
 
 Todo corre en tu navegador; el chat nunca sale de tu equipo.
 
