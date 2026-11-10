@@ -1,33 +1,32 @@
-import { parse } from './parser.js';
-import { compute } from './stats.js';
+import { $, esc, n, pct, fmtDate, dur, css, color, chips, chartCard, section, chart, stacked, WEEK, TYPES } from './ui.js';
+import { dayKey } from './util.js';
+import { carino, drawCarino, ritmo, drawRitmo, mesames, drawMesames, estilo, drawEstilo, eventos } from './sections.js';
 
-const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const n = (x) => Math.round(x).toLocaleString('es');
-const pct = (a, b) => `${((100 * a) / Math.max(1, b)).toFixed(1)}%`;
-const fmtDate = (d) => new Date(d).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
-const dur = (ms) => (ms < 60e3 ? '< 1 min' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min` : `${(ms / 3600e3).toFixed(1)} h`);
-const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const color = (i) => (i < 4 ? css(`--a${i + 1}`) : `hsl(${(i * 67) % 360} 60% 55%)`);
-const WEEK = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-const TYPES = { text: 'Texto', sticker: 'Stickers', image: 'Fotos', video: 'Videos', audio: 'Audios', gif: 'GIFs', media: 'Multimedia (omitida)', viewonce: 'Ver una vez', videonote: 'Videonotas', deleted: 'Eliminados', location: 'Ubicaciones', document: 'Documentos', contact: 'Contactos', poll: 'Encuestas' };
-const charts = [];
+const worker = new Worker('worker.js', { type: 'module' });
+const KEY = 'whatsappstats.custom';
+const loadCustom = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
+const saveCustom = (l) => { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch {} };
+let state = null, fileName = '';
 
 const drop = $('#drop');
 $('#file').onchange = (e) => e.target.files[0] && load(e.target.files[0]);
 drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
 drop.ondragleave = () => drop.classList.remove('over');
 drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); e.dataTransfer.files[0] && load(e.dataTransfer.files[0]); };
+$('#print').onclick = () => window.print();
+window.onbeforeprint = () => document.querySelectorAll('details').forEach((d) => (d.open = true));
 
 async function load(file) {
-  $('#status').textContent = `Procesando ${file.name}…`;
-  const text = await file.text();
-  await new Promise((r) => setTimeout(r, 30)); // let the status paint before the heavy work
-  const { messages } = parse(text);
-  if (!messages.length) { $('#status').textContent = 'No encontré mensajes. ¿Es un export de WhatsApp?'; return; }
-  render(compute(messages));
-  $('#status').textContent = `${file.name} · ${n(messages.length)} mensajes`;
+  fileName = file.name;
+  $('#status').textContent = `Procesando ${file.name}… (un chat grande tarda unos segundos)`;
+  worker.postMessage({ text: await file.text(), custom: loadCustom() });
 }
+
+worker.onmessage = ({ data }) => {
+  if (data.error) { $('#status').textContent = data.error; return; }
+  if (data.s) { state = data; render(); $('#status').textContent = `${fileName} · ${n(data.s.total)} mensajes`; return; }
+  state.lx = data.lx; renderCarino();
+};
 
 function kpis(s) {
   const items = [
@@ -44,7 +43,7 @@ function peopleTable(s) {
   const rows = [
     ['Mensajes', (p) => `${n(p.messages)} (${pct(p.messages, s.total)})`], ['Palabras', (p) => n(p.words)],
     ['Letras por mensaje', (p) => p.avgLen.toFixed(1)], ['Días activos', (p) => n(p.activeDays)],
-    ['Inicia conversaciones', (p) => n(p.starts)], ['Tiempo de respuesta medio', (p) => dur(p.avgResponse)],
+    ['Inicia conversaciones (tras 6 h)', (p) => n(p.starts)], ['Tiempo de respuesta medio', (p) => dur(p.avgResponse)],
     ['Emojis', (p) => n(p.emojiCount)], ['Risas (jaja, xd…)', (p) => n(p.laughs)], ['Preguntas', (p) => n(p.questions)],
     ['Links', (p) => n(p.links)], ['Editados', (p) => n(p.edited)],
     ...Object.keys(TYPES).filter((t) => t !== 'text' && s.types[t]).map((t) => [TYPES[t], (p) => n(p.types[t] || 0)]),
@@ -53,8 +52,6 @@ function peopleTable(s) {
   const body = rows.map(([label, f]) => `<tr><td>${label}</td>${s.people.map((p) => `<td>${f(p)}</td>`).join('')}</tr>`).join('');
   return `<div class="card"><h2>Por persona</h2><div class="scroll"><table><tr><th></th>${head}</tr>${body}</table></div></div>`;
 }
-
-const chips = (list) => `<div class="chips">${list.map(([k, v]) => `<span class="chip">${esc(k)} <span class="muted">${n(v)}</span></span>`).join('')}</div>`;
 
 function personCards(s) {
   return `<div class="two">${s.people.slice(0, 12).map((p, i) => `<div class="card"><h2 style="color:${color(i)}">${esc(p.name)}</h2>
@@ -71,37 +68,57 @@ function heatmap(s) {
   return `<div class="card"><h2>Cuándo hablan (día × hora)</h2><div class="heat">${cells}<span></span>${hours}</div></div>`;
 }
 
-const chartCard = (id, title) => `<div class="card"><h2>${title}</h2><div class="chart"><canvas id="${id}"></canvas></div></div>`;
+const names = () => state.s.people.slice(0, 12).map((p) => p.name);
 
-function render(s) {
+function renderCarino() {
+  $('#carino').innerHTML = carino(state.lx, names());
+  $('#custom-input').value = loadCustom().join(', ');
+  $('#custom-form').onsubmit = (e) => {
+    e.preventDefault();
+    const list = $('#custom-input').value.split(',').map((w) => w.trim()).filter(Boolean).slice(0, 20);
+    saveCustom(list);
+    worker.postMessage({ custom: list });
+  };
+  drawCarino(state.lx, names());
+}
+
+function render() {
+  const { s, rh, st, ev } = state;
   const out = $('#out');
   out.hidden = false;
   out.innerHTML = `<p class="muted">${fmtDate(s.first)} → ${fmtDate(s.last)}</p>${kpis(s)}${peopleTable(s)}
-    ${chartCard('months', 'Mensajes por mes')}${chartCard('daily', 'Mensajes por día')}
-    <div class="two">${chartCard('hours', 'Por hora del día')}${chartCard('weekdays', 'Por día de la semana')}</div>
+    ${chartCard('months', 'Mensajes por mes')}${chartCard('daily', 'Mensajes por día', ev.length ? 'Los puntos marcan eventos (bloqueos, cambios de número…).' : '')}
+    <div class="two">${chartCard('hours', 'Por hora del día')}${chartCard('weekdays', 'Por día de la semana (totales)')}</div>
     ${heatmap(s)}
     <div class="two">${chartCard('types', 'Tipos de mensaje')}${chartCard('share', 'Quién habla más')}</div>
     <div class="card"><h2>Emojis más usados</h2>${chips(s.topEmojis)}</div>
-    ${chartCard('words', 'Palabras más usadas')}${personCards(s)}`;
-  draw(s);
-}
-
-function draw(s) {
-  charts.splice(0).forEach((c) => c.destroy());
+    ${chartCard('words', 'Palabras más usadas', '', 640)}${personCards(s)}
+    ${section('Cariño', '<div id="carino"></div>')}
+    ${section('Ritmo y reciprocidad', ritmo(s, rh, names()))}
+    ${section('Mes a mes', mesames(rh, state.lx, names()))}
+    ${section('Estilo de escritura', estilo(st, names()))}
+    ${section(`Eventos (${ev.length})`, eventos(ev))}`;
   Chart.defaults.color = css('--muted');
   Chart.defaults.borderColor = css('--line');
-  const ppl = s.people.slice(0, 12);
-  const mk = (id, cfg) => charts.push(new Chart($(`#${id}`), { ...cfg, options: { maintainAspectRatio: false, ...cfg.options } }));
-  const perPerson = (labels, get) => ({ labels, datasets: ppl.map((p, i) => ({ label: p.name, data: get(p), backgroundColor: color(i), borderColor: color(i) })) });
-  const stacked = { scales: { x: { stacked: true }, y: { stacked: true } } };
+  draw(s, ev);
+  renderCarino();
+  drawRitmo(s, rh, names());
+  drawMesames(rh);
+  drawEstilo(st);
+}
 
-  mk('months', { type: 'bar', data: perPerson(s.months.map((m) => m.month), (p) => s.months.map((m) => m.by[p.name] || 0)), options: stacked });
-  mk('daily', { type: 'line', data: { labels: s.days.map((d) => d.day), datasets: [{ label: 'Mensajes', data: s.days.map((d) => d.n), borderColor: color(0), pointRadius: 0, borderWidth: 1 }] }, options: { plugins: { legend: { display: false } } } });
-  mk('hours', { type: 'bar', data: perPerson(Array.from({ length: 24 }, (_, h) => `${h}h`), (p) => p.hours), options: stacked });
-  mk('weekdays', { type: 'bar', data: perPerson(WEEK, (p) => p.weekdays), options: stacked });
+function draw(s, ev) {
+  const ppl = s.people.slice(0, 12);
+  const perPerson = (labels, get) => ({ labels, datasets: ppl.map((p, i) => ({ label: p.name, data: get(p), backgroundColor: color(i), borderColor: color(i) })) });
+  chart('months', { type: 'bar', data: perPerson(s.months.map((m) => m.month), (p) => s.months.map((m) => m.by[p.name] || 0)), options: stacked() });
+  const evDays = new Map(ev.map((e) => [dayKey(e.date), e.kind]));
+  const daily = [{ label: 'Mensajes', data: s.days.map((d) => d.n), borderColor: color(0), pointRadius: 0, borderWidth: 1 }];
+  if (ev.length) daily.push({ label: 'Eventos', data: s.days.map((d) => (evDays.has(d.day) ? d.n : null)), showLine: false, pointRadius: 6, backgroundColor: color(1), borderColor: color(1) });
+  chart('daily', { type: 'line', data: { labels: s.days.map((d) => d.day), datasets: daily }, options: { plugins: { legend: { display: ev.length > 0 }, tooltip: { callbacks: { afterLabel: (c) => (c.datasetIndex === 1 ? evDays.get(c.label) : '') } } } } });
+  chart('hours', { type: 'bar', data: perPerson(Array.from({ length: 24 }, (_, h) => `${h}h`), (p) => p.hours), options: stacked() });
+  chart('weekdays', { type: 'bar', data: perPerson(WEEK, (p) => p.weekdays), options: stacked() });
   const types = Object.entries(s.types).sort((a, b) => b[1] - a[1]);
-  mk('types', { type: 'doughnut', data: { labels: types.map(([t]) => TYPES[t] || t), datasets: [{ data: types.map(([, v]) => v), backgroundColor: types.map((_, i) => color(i)) }] }, options: { plugins: { legend: { position: 'right' } } } });
-  mk('share', { type: 'doughnut', data: { labels: ppl.map((p) => p.name), datasets: [{ data: ppl.map((p) => p.messages), backgroundColor: ppl.map((_, i) => color(i)) }] } });
-  mk('words', { type: 'bar', data: { labels: s.topWords.map(([w]) => w), datasets: [{ data: s.topWords.map(([, v]) => v), backgroundColor: color(0) }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } } } });
-  $('#words').parentElement.style.height = '640px';
+  chart('types', { type: 'doughnut', data: { labels: types.map(([t]) => TYPES[t] || t), datasets: [{ data: types.map(([, v]) => v), backgroundColor: types.map((_, i) => color(i)) }] }, options: { plugins: { legend: { position: 'right' } } } });
+  chart('share', { type: 'doughnut', data: { labels: ppl.map((p) => p.name), datasets: [{ data: ppl.map((p) => p.messages), backgroundColor: ppl.map((_, i) => color(i)) }] } });
+  chart('words', { type: 'bar', data: { labels: s.topWords.map(([w]) => w), datasets: [{ data: s.topWords.map(([, v]) => v), backgroundColor: color(0) }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } } } });
 }

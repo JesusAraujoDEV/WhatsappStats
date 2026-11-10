@@ -1,15 +1,8 @@
-// Turns parsed messages into every number the dashboard shows.
-const EMOJI = /\p{Extended_Pictographic}(?:\p{Emoji_Modifier}|️|‍\p{Extended_Pictographic})*/gu;
-const WORD = /[\p{L}\p{N}]+/gu;
-const LAUGH = /\b(?:j[aeisj]{3,}|ha(?:ha)+|ja(?:ja)+|lo+l|lmao|xd+)\b/giu;
-const URL = /https?:\/\/\S+/g;
-const STOP = new Set(`que de la el en y a los las se no un una por con es para lo me te mi tu su al del le ya si pero como mas más muy yo eso esta este está ese era fue ser hay qué q d x ni o u sí son hace tengo tiene todo pues porque bueno entonces también vez así hasta cuando donde sin sobre cosa ahí allá aqui aquí estoy estás tienes voy va van and the to of is it in that you for on with this was are be have not but just so can what my me your at do im its dont like get all he she we they or if about one there will would from out up how when no yes ok der die das und ist ich du nicht sie es ein eine zu mit den auf für sich dem des auch wie was war aber so mir dich mich hast bin habe noch nur schon wenn dann jetzt kann oder ja nein mal`.split(' '));
-const GAP = 6 * 3600e3; // a silence this long starts a new "conversation"
+// Core numbers: totals, per person, timelines, streaks.
+import { dayKey, monthKey, inc, top, EMOJI, URL, WORD, isCode, contentWords } from './util.js';
 
-const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const monthKey = (d) => dayKey(d).slice(0, 7);
-const inc = (o, k, n = 1) => (o[k] = (o[k] || 0) + n);
-const top = (o, n) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, n);
+const LAUGH = /\b(?:j[aeisj]{3,}|ha(?:ha)+|ja(?:ja)+|lo+l|lmao|xd+)\b/giu;
+const GAP = 6 * 3600e3; // a silence this long starts a new "conversation"
 
 function newAuthor() {
   return { messages: 0, words: 0, chars: 0, types: {}, emojis: {}, words_: {}, emojiCount: 0, laughs: 0, links: 0, questions: 0, edited: 0, starts: 0, responses: [], longest: '', hours: Array(24).fill(0), weekdays: Array(7).fill(0), days: new Set() };
@@ -25,8 +18,8 @@ export function compute(messages) {
     const d = m.date, day = dayKey(d), wd = (d.getDay() + 6) % 7; // Monday = 0
     a.messages++; a.hours[d.getHours()]++; a.weekdays[wd]++; a.days.add(day);
     inc(a.types, m.type); inc(types, m.type);
-    (perDay[day] ||= {})[m.author] = (perDay[day][m.author] || 0) + 1;
-    (perMonth[monthKey(d)] ||= {})[m.author] = (perMonth[monthKey(d)][m.author] || 0) + 1;
+    inc((perDay[day] ||= {}), m.author);
+    inc((perMonth[monthKey(d)] ||= {}), m.author);
     heat[wd][d.getHours()]++;
     if (m.edited) a.edited++;
     if (!prev || d - prev.date >= GAP) a.starts++;
@@ -40,10 +33,9 @@ export function compute(messages) {
     if (t.includes('?')) a.questions++;
     a.laughs += (t.match(LAUGH) || []).length;
     for (const e of t.match(EMOJI) || []) { inc(a.emojis, e); inc(emojis, e); a.emojiCount++; }
-    for (const w of t.replace(URL, '').toLowerCase().match(WORD) || []) {
-      a.words++;
-      if (w.length > 2 && !STOP.has(w) && !/^\d+$/.test(w)) { inc(a.words_, w); inc(words, w); }
-    }
+    a.words += (t.replace(URL, '').match(WORD) || []).length;
+    if (isCode(t)) continue;
+    for (const w of contentWords(t)) { inc(a.words_, w); inc(words, w); }
   }
 
   const days = Object.keys(perDay).sort();
